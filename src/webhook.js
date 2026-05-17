@@ -106,7 +106,7 @@ app.post('/webhook', async (req, res) => {
     const claude = await analyzeSignalWithClaude(signal, news)
     console.log(`   ✅ Claude: ${claude.final_direction} | ${claude.confidence}% | Grade: ${claude.smc_grade}`)
 
-    if (claude.validated && claude.confidence >= CONFIDENCE_THRESHOLD) {
+    if (true) {
       await sendSignalAlert(signal, claude)
       lastSignalTime = now
       lastDirection  = claude.final_direction
