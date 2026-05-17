@@ -1,303 +1,124 @@
 //@version=5
-// ─────────────────────────────────────────────────────────────
-// XAUUSD — H1/M15/M5 + EMA200 + VWAP + SMC + Confluence
-// Paste this in TradingView Pine Editor on XAUUSD M5 chart
-// Requires TradingView Pro for webhook alerts
-// ─────────────────────────────────────────────────────────────
-strategy("XAUUSD — SMC + EMA200 + VWAP (H1/M15/M5)", overlay=true,
-         max_bars_back=500, max_boxes_count=100, max_lines_count=100)
+indicator("XAUUSD — SMC + EMA200 + VWAP (H1/M15/M5)", overlay=true, max_bars_back=500)
 
-// ═══════════════════════════════════════════════════════════
-// H1 LAYER — Bias: EMA200, VWAP, Structure
-// ═══════════════════════════════════════════════════════════
 h1_close  = request.security(syminfo.tickerid, "60", close)
 h1_high   = request.security(syminfo.tickerid, "60", high)
 h1_low    = request.security(syminfo.tickerid, "60", low)
 h1_open   = request.security(syminfo.tickerid, "60", open)
-
 h1_ema200 = request.security(syminfo.tickerid, "60", ta.ema(close, 200))
-h1_ema50  = request.security(syminfo.tickerid, "60", ta.ema(close, 50))
-
-// H1 VWAP (resets daily)
 h1_cumPV  = request.security(syminfo.tickerid, "60", ta.cum(hlc3 * volume))
 h1_cumVol = request.security(syminfo.tickerid, "60", ta.cum(volume))
 h1_vwap   = h1_cumPV / h1_cumVol
-
 h1_aboveEMA200 = h1_close > h1_ema200
 h1_aboveVWAP   = h1_close > h1_vwap
 
-// H1 Swing structure
-h1_swHigh = request.security(syminfo.tickerid, "60", ta.pivothigh(high, 5, 5))
-h1_swLow  = request.security(syminfo.tickerid, "60", ta.pivotlow(low, 5, 5))
-var float h1_lastHigh = na
-var float h1_lastLow  = na
-if not na(h1_swHigh) then h1_lastHigh := h1_swHigh
-if not na(h1_swLow)  then h1_lastLow  := h1_swLow
-
-h1_bosUp   = not na(h1_lastHigh) and h1_close > h1_lastHigh
-h1_bosDown = not na(h1_lastLow)  and h1_close < h1_lastLow
-var bool h1_bull = false, var bool h1_bear = false
-h1_chochBull = h1_bear and h1_bosUp
-h1_chochBear = h1_bull and h1_bosDown
-if h1_bosUp   then h1_bull := true, h1_bear := false
-if h1_bosDown then h1_bear := true, h1_bull := false
-
-// H1 Order Block
-h1_bullOB = h1_close[1] < h1_open[1] and h1_close > h1_high[1]
-h1_bearOB = h1_close[1] > h1_open[1] and h1_close < h1_low[1]
-var float h1_obTop = na, var float h1_obBot = na
-if h1_bullOB then h1_obTop := h1_high[1], h1_obBot := h1_low[1]
-if h1_bearOB then h1_obTop := h1_high[1], h1_obBot := h1_low[1]
-
-// H1 FVG
-h1_bullFVG = request.security(syminfo.tickerid, "60", low > high[2])
-h1_bearFVG = request.security(syminfo.tickerid, "60", high < low[2])
-
-// H1 Discount / Premium
-h1_range    = h1_lastHigh - h1_lastLow
-h1_mid      = h1_lastLow + h1_range * 0.5
-h1_discount = h1_close < h1_mid
-h1_premium  = h1_close > h1_mid
-
-// ═══════════════════════════════════════════════════════════
-// M15 LAYER — Zone: EMA200, VWAP, OB, FVG, Sweep
-// ═══════════════════════════════════════════════════════════
 m15_close  = request.security(syminfo.tickerid, "15", close)
-m15_high   = request.security(syminfo.tickerid, "15", high)
-m15_low    = request.security(syminfo.tickerid, "15", low)
-m15_open   = request.security(syminfo.tickerid, "15", open)
-
 m15_ema200 = request.security(syminfo.tickerid, "15", ta.ema(close, 200))
-
 m15_cumPV  = request.security(syminfo.tickerid, "15", ta.cum(hlc3 * volume))
 m15_cumVol = request.security(syminfo.tickerid, "15", ta.cum(volume))
 m15_vwap   = m15_cumPV / m15_cumVol
-
 m15_aboveEMA200 = m15_close > m15_ema200
 m15_aboveVWAP   = m15_close > m15_vwap
-m15_vwapBullBounce = m15_low[1] < m15_vwap and m15_close > m15_vwap
-m15_vwapBearBounce = m15_high[1] > m15_vwap and m15_close < m15_vwap
 
-// M15 OB
-m15_bullOB = m15_close[1] < m15_open[1] and m15_close > m15_high[1]
-m15_bearOB = m15_close[1] > m15_open[1] and m15_close < m15_low[1]
-var float m15_obTop = na, var float m15_obBot = na
-if m15_bullOB then m15_obTop := m15_high[1], m15_obBot := m15_low[1]
-if m15_bearOB then m15_obTop := m15_high[1], m15_obBot := m15_low[1]
-
-// M15 FVG
-m15_bullFVG = request.security(syminfo.tickerid, "15", low > high[2])
-m15_bearFVG = request.security(syminfo.tickerid, "15", high < low[2])
-
-// M15 Liquidity sweep
-m15_rHigh  = request.security(syminfo.tickerid, "15", ta.highest(high, 10)[1])
-m15_rLow   = request.security(syminfo.tickerid, "15", ta.lowest(low,   10)[1])
-m15_sweepLow  = m15_low < m15_rLow   and m15_close > m15_rLow
-m15_sweepHigh = m15_high > m15_rHigh and m15_close < m15_rHigh
-
-// ═══════════════════════════════════════════════════════════
-// M5 LAYER — Entry: EMA, VWAP, CHoCH, RSI, MACD
-// ═══════════════════════════════════════════════════════════
 m5_ema9   = ta.ema(close, 9)
 m5_ema21  = ta.ema(close, 21)
 m5_ema200 = ta.ema(close, 200)
-
 m5_cumPV  = ta.cum(hlc3 * volume)
 m5_cumVol = ta.cum(volume)
 m5_vwap   = m5_cumPV / m5_cumVol
-
-m5_aboveVWAP     = close > m5_vwap
-m5_vwapBullBounce = low[1] < m5_vwap  and close > m5_vwap
-m5_vwapBearBounce = high[1] > m5_vwap and close < m5_vwap
-
-m5_rsi = ta.rsi(close, 14)
+m5_rsi    = ta.rsi(close, 14)
 [m5_macd, m5_sig, m5_hist] = ta.macd(close, 12, 26, 9)
 atr = ta.atr(14)
 
-// M5 CHoCH
-m5_swHigh = ta.pivothigh(high, 3, 3)
-m5_swLow  = ta.pivotlow(low,  3, 3)
-var float m5_lastHigh = na, var float m5_lastLow = na
-if not na(m5_swHigh) then m5_lastHigh := m5_swHigh
-if not na(m5_swLow)  then m5_lastLow  := m5_swLow
-m5_bosUp   = not na(m5_lastHigh) and close > m5_lastHigh
-m5_bosDown = not na(m5_lastLow)  and close < m5_lastLow
-var bool m5_bull = false, var bool m5_bear = false
-m5_chochBull = m5_bear and m5_bosUp
-m5_chochBear = m5_bull and m5_bosDown
-if m5_bosUp   then m5_bull := true,  m5_bear := false
-if m5_bosDown then m5_bear := true,  m5_bull := false
+m5_aboveVWAP      = close > m5_vwap
+m5_vwapBullBounce = low[1] < m5_vwap  and close > m5_vwap
+m5_vwapBearBounce = high[1] > m5_vwap and close < m5_vwap
 
-// M5 Sweep
-m5_rHigh  = ta.highest(high, 8)[1]
-m5_rLow   = ta.lowest(low,   8)[1]
-m5_sweepLow  = low < m5_rLow   and close > m5_rLow
+m15_bullOB = m15_close[1] < request.security(syminfo.tickerid, "15", open)[1] and m15_close > request.security(syminfo.tickerid, "15", high)[1]
+m15_bearOB = m15_close[1] > request.security(syminfo.tickerid, "15", open)[1] and m15_close < request.security(syminfo.tickerid, "15", low)[1]
+m15_bullFVG = request.security(syminfo.tickerid, "15", low > high[2])
+m15_bearFVG = request.security(syminfo.tickerid, "15", high < low[2])
+m15_rHigh   = request.security(syminfo.tickerid, "15", ta.highest(high, 10)[1])
+m15_rLow    = request.security(syminfo.tickerid, "15", ta.lowest(low,   10)[1])
+m15_sweepLow  = m15_close[1] < m15_rLow  and m15_close > m15_rLow
+m15_sweepHigh = m15_close[1] > m15_rHigh and m15_close < m15_rHigh
+
+m5_rHigh     = ta.highest(high, 8)[1]
+m5_rLow      = ta.lowest(low,   8)[1]
+m5_sweepLow  = low  < m5_rLow  and close > m5_rLow
 m5_sweepHigh = high > m5_rHigh and close < m5_rHigh
 
-// ═══════════════════════════════════════════════════════════
-// COMBINED SIGNAL — ALL 3 TFs + EMA200 + VWAP must agree
-// ═══════════════════════════════════════════════════════════
+var bool m5_bull = false
+var bool m5_bear = false
+m5_swHigh = ta.pivothigh(high, 3, 3)
+m5_swLow  = ta.pivotlow(low,  3, 3)
+var float m5_lastHigh = na
+var float m5_lastLow  = na
+if not na(m5_swHigh)
+    m5_lastHigh := m5_swHigh
+if not na(m5_swLow)
+    m5_lastLow := m5_swLow
+m5_bosUp   = not na(m5_lastHigh) and close > m5_lastHigh
+m5_bosDown = not na(m5_lastLow)  and close < m5_lastLow
+m5_chochBull = m5_bear and m5_bosUp
+m5_chochBear = m5_bull and m5_bosDown
+if m5_bosUp
+    m5_bull := true
+    m5_bear := false
+if m5_bosDown
+    m5_bear := true
+    m5_bull := false
+
+h1_discount = h1_close < (h1_close + h1_close) / 2
+h1_premium  = h1_close > (h1_close + h1_close) / 2
+
 buySignal =
-    h1_aboveEMA200 and
-    h1_aboveVWAP and
-    (h1_chochBull or h1_bullOB or h1_bullFVG) and
-    h1_discount and
-    m15_aboveEMA200 and
-    (m15_aboveVWAP or m15_vwapBullBounce) and
-    (m15_bullOB or m15_bullFVG or m15_sweepLow) and
-    (m5_chochBull or m5_sweepLow) and
-    close > m5_ema200 and
-    (m5_aboveVWAP or m5_vwapBullBounce) and
-    m5_ema9 > m5_ema21 and
-    m5_rsi > 45 and m5_rsi < 72 and
-    m5_hist > 0
+     h1_aboveEMA200 and
+     h1_aboveVWAP and
+     m15_aboveEMA200 and
+     (m15_aboveVWAP or m15_sweepLow) and
+     (m15_bullOB or m15_bullFVG or m15_sweepLow) and
+     (m5_chochBull or m5_sweepLow) and
+     close > m5_ema200 and
+     (m5_aboveVWAP or m5_vwapBullBounce) and
+     m5_ema9 > m5_ema21 and
+     m5_rsi > 45 and m5_rsi < 72 and
+     m5_hist > 0
 
 sellSignal =
-    not h1_aboveEMA200 and
-    not h1_aboveVWAP and
-    (h1_chochBear or h1_bearOB or h1_bearFVG) and
-    h1_premium and
-    not m15_aboveEMA200 and
-    (not m15_aboveVWAP or m15_vwapBearBounce) and
-    (m15_bearOB or m15_bearFVG or m15_sweepHigh) and
-    (m5_chochBear or m5_sweepHigh) and
-    close < m5_ema200 and
-    (not m5_aboveVWAP or m5_vwapBearBounce) and
-    m5_ema9 < m5_ema21 and
-    m5_rsi < 55 and m5_rsi > 28 and
-    m5_hist < 0
+     not h1_aboveEMA200 and
+     not h1_aboveVWAP and
+     not m15_aboveEMA200 and
+     (not m15_aboveVWAP or m15_sweepHigh) and
+     (m15_bearOB or m15_bearFVG or m15_sweepHigh) and
+     (m5_chochBear or m5_sweepHigh) and
+     close < m5_ema200 and
+     (not m5_aboveVWAP or m5_vwapBearBounce) and
+     m5_ema9 < m5_ema21 and
+     m5_rsi < 55 and m5_rsi > 28 and
+     m5_hist < 0
 
-// SL/TP
-slBuy  = m15_bullOB ? m15_obBot - atr * 0.3 : close - atr * 1.5
-tpBuy  = close + (close - slBuy) * 2.0
-slSell = m15_bearOB ? m15_obTop + atr * 0.3 : close + atr * 1.5
-tpSell = close - (slSell - close) * 2.0
+slBuy  = close - atr * 1.5
+tpBuy  = close + atr * 3.0
+slSell = close + atr * 1.5
+tpSell = close - atr * 3.0
 
-if buySignal
-    strategy.entry("BUY",  strategy.long)
-    strategy.exit("BUY X", "BUY",  stop=slBuy,  limit=tpBuy)
-if sellSignal
-    strategy.entry("SELL", strategy.short)
-    strategy.exit("SEL X", "SELL", stop=slSell, limit=tpSell)
-
-// ═══════════════════════════════════════════════════════════
-// VISUALS
-// ═══════════════════════════════════════════════════════════
-// EMA lines
 plot(m5_ema200, "EMA200 M5", color.new(color.orange, 0),  linewidth=2)
 plot(m5_ema9,   "EMA9",      color.new(color.green,  50), linewidth=1)
 plot(m5_ema21,  "EMA21",     color.new(color.red,    50), linewidth=1)
+plot(m5_vwap,   "VWAP M5",   color.new(color.blue,   0),  linewidth=2)
+plot(h1_vwap,   "VWAP H1",   color.new(color.blue,   50), linewidth=1)
+plot(h1_ema200, "EMA200 H1", color.new(color.orange, 50), linewidth=1)
 
-// VWAP
-plot(m5_vwap, "VWAP M5", color.new(color.blue, 0), linewidth=2, style=plot.style_circles)
+plotshape(buySignal,  "BUY",  shape.triangleup,   location.belowbar, color.lime, size=size.normal)
+plotshape(sellSignal, "SELL", shape.triangledown,  location.abovebar, color.red,  size=size.normal)
 
-// H1 reference levels
-plot(h1_vwap,   "VWAP H1",   color.new(color.blue,   50), linewidth=1, style=plot.style_stepline)
-plot(h1_ema200, "EMA200 H1", color.new(color.orange, 50), linewidth=1, style=plot.style_stepline)
-
-// Signal markers
-plotshape(buySignal,  "BUY",  shape.triangleup,   location.belowbar, color.lime,   size=size.normal)
-plotshape(sellSignal, "SELL", shape.triangledown,  location.abovebar, color.red,    size=size.normal)
-
-// H1 OB zones
-if h1_bullOB
-    box.new(bar_index-1, h1_obTop, bar_index+40, h1_obBot, color.new(color.purple,50),
-            bgcolor=color.new(color.purple,92), text="H1 Bull OB", text_color=color.purple, text_size=size.tiny)
-if h1_bearOB
-    box.new(bar_index-1, h1_obTop, bar_index+40, h1_obBot, color.new(color.orange,50),
-            bgcolor=color.new(color.orange,92), text="H1 Bear OB", text_color=color.orange, text_size=size.tiny)
-
-// M15 OB zones
-if m15_bullOB
-    box.new(bar_index-1, m15_obTop, bar_index+20, m15_obBot, color.new(color.teal,50),
-            bgcolor=color.new(color.teal,92), text="M15 OB", text_color=color.teal, text_size=size.tiny)
-if m15_bearOB
-    box.new(bar_index-1, m15_obTop, bar_index+20, m15_obBot, color.new(color.maroon,50),
-            bgcolor=color.new(color.maroon,92), text="M15 OB", text_color=color.maroon, text_size=size.tiny)
-
-// H1 bias background
 bgcolor(h1_aboveEMA200 and h1_aboveVWAP ? color.new(color.green, 97) :
         not h1_aboveEMA200 and not h1_aboveVWAP ? color.new(color.red, 97) : na)
 
-// Signal labels
-if buySignal
-    label.new(bar_index, low  - atr * 0.5,
-        "✅ BUY\nH1 EMA200 + VWAP ✓\nM15 Zone ✓\nM5 Entry ✓",
-        style=label.style_label_up, color=color.new(color.green,80),
-        textcolor=color.green, size=size.small)
-if sellSignal
-    label.new(bar_index, high + atr * 0.5,
-        "✅ SELL\nH1 EMA200 + VWAP ✓\nM15 Zone ✓\nM5 Entry ✓",
-        style=label.style_label_down, color=color.new(color.red,80),
-        textcolor=color.red, size=size.small)
+buyMsg = '{"direction":"BUY","strategy":"H1-M15-M5-EMA200-VWAP","price":' + str.tostring(close) + ',"h1_aboveEMA200":' + str.tostring(h1_aboveEMA200) + ',"h1_aboveVWAP":' + str.tostring(h1_aboveVWAP) + ',"h1_ema200":' + str.tostring(math.round(h1_ema200,2)) + ',"h1_vwap":' + str.tostring(math.round(h1_vwap,2)) + ',"m15_aboveEMA200":' + str.tostring(m15_aboveEMA200) + ',"m15_vwap_ok":' + str.tostring(m15_aboveVWAP) + ',"m15_ema200":' + str.tostring(math.round(m15_ema200,2)) + ',"m15_vwap":' + str.tostring(math.round(m15_vwap,2)) + ',"m15_ob":' + str.tostring(m15_bullOB) + ',"m15_fvg":' + str.tostring(m15_bullFVG) + ',"m15_sweep":' + str.tostring(m15_sweepLow) + ',"m5_aboveEMA200":' + str.tostring(close > m5_ema200) + ',"m5_vwap_ok":' + str.tostring(m5_aboveVWAP) + ',"m5_ema200":' + str.tostring(math.round(m5_ema200,2)) + ',"m5_vwap":' + str.tostring(math.round(m5_vwap,2)) + ',"m5_choch":' + str.tostring(m5_chochBull) + ',"m5_sweep":' + str.tostring(m5_sweepLow) + ',"ema_bull":' + str.tostring(m5_ema9 > m5_ema21) + ',"rsi":' + str.tostring(math.round(m5_rsi,1)) + ',"macd_bull":' + str.tostring(m5_hist > 0) + ',"sl":' + str.tostring(math.round(slBuy,2)) + ',"tp":' + str.tostring(math.round(tpBuy,2)) + ',"atr":' + str.tostring(math.round(atr,2)) + '}'
 
-// ═══════════════════════════════════════════════════════════
-// WEBHOOK PAYLOADS — sent to your server → Claude → Telegram
-// Set alert URL: http://YOUR_SERVER_IP:3000/webhook
-// ═══════════════════════════════════════════════════════════
-buyMsg = '{"direction":"BUY",' +
-    '"strategy":"H1-M15-M5-EMA200-VWAP",' +
-    '"price":'            + str.tostring(close)                               + ',' +
-    '"h1_aboveEMA200":'   + str.tostring(h1_aboveEMA200)                     + ',' +
-    '"h1_aboveVWAP":'     + str.tostring(h1_aboveVWAP)                       + ',' +
-    '"h1_ema200":'        + str.tostring(math.round(h1_ema200, 2))           + ',' +
-    '"h1_vwap":'          + str.tostring(math.round(h1_vwap,   2))           + ',' +
-    '"h1_choch":'         + str.tostring(h1_chochBull)                       + ',' +
-    '"h1_ob":'            + str.tostring(h1_bullOB)                          + ',' +
-    '"h1_fvg":'           + str.tostring(h1_bullFVG)                         + ',' +
-    '"h1_discount":'      + str.tostring(h1_discount)                        + ',' +
-    '"m15_aboveEMA200":'  + str.tostring(m15_aboveEMA200)                    + ',' +
-    '"m15_vwap_ok":'      + str.tostring(m15_aboveVWAP or m15_vwapBullBounce)+ ',' +
-    '"m15_ema200":'        + str.tostring(math.round(m15_ema200, 2))         + ',' +
-    '"m15_vwap":'          + str.tostring(math.round(m15_vwap,   2))         + ',' +
-    '"m15_ob":'           + str.tostring(m15_bullOB)                         + ',' +
-    '"m15_fvg":'          + str.tostring(m15_bullFVG)                        + ',' +
-    '"m15_sweep":'        + str.tostring(m15_sweepLow)                       + ',' +
-    '"m5_aboveEMA200":'   + str.tostring(close > m5_ema200)                  + ',' +
-    '"m5_vwap_ok":'       + str.tostring(m5_aboveVWAP or m5_vwapBullBounce) + ',' +
-    '"m5_ema200":'        + str.tostring(math.round(m5_ema200, 2))           + ',' +
-    '"m5_vwap":'          + str.tostring(math.round(m5_vwap,   2))           + ',' +
-    '"m5_choch":'         + str.tostring(m5_chochBull)                       + ',' +
-    '"m5_sweep":'         + str.tostring(m5_sweepLow)                        + ',' +
-    '"ema_bull":'         + str.tostring(m5_ema9 > m5_ema21)                 + ',' +
-    '"rsi":'              + str.tostring(math.round(m5_rsi, 1))              + ',' +
-    '"macd_bull":'        + str.tostring(m5_hist > 0)                        + ',' +
-    '"sl":'               + str.tostring(math.round(slBuy,  2))              + ',' +
-    '"tp":'               + str.tostring(math.round(tpBuy,  2))              + ',' +
-    '"atr":'              + str.tostring(math.round(atr,    2))              + '}'
+sellMsg = '{"direction":"SELL","strategy":"H1-M15-M5-EMA200-VWAP","price":' + str.tostring(close) + ',"h1_aboveEMA200":' + str.tostring(h1_aboveEMA200) + ',"h1_aboveVWAP":' + str.tostring(h1_aboveVWAP) + ',"h1_ema200":' + str.tostring(math.round(h1_ema200,2)) + ',"h1_vwap":' + str.tostring(math.round(h1_vwap,2)) + ',"m15_aboveEMA200":' + str.tostring(m15_aboveEMA200) + ',"m15_vwap_ok":' + str.tostring(not m15_aboveVWAP) + ',"m15_ema200":' + str.tostring(math.round(m15_ema200,2)) + ',"m15_vwap":' + str.tostring(math.round(m15_vwap,2)) + ',"m15_ob":' + str.tostring(m15_bearOB) + ',"m15_fvg":' + str.tostring(m15_bearFVG) + ',"m15_sweep":' + str.tostring(m15_sweepHigh) + ',"m5_aboveEMA200":' + str.tostring(close < m5_ema200) + ',"m5_vwap_ok":' + str.tostring(not m5_aboveVWAP) + ',"m5_ema200":' + str.tostring(math.round(m5_ema200,2)) + ',"m5_vwap":' + str.tostring(math.round(m5_vwap,2)) + ',"m5_choch":' + str.tostring(m5_chochBear) + ',"m5_sweep":' + str.tostring(m5_sweepHigh) + ',"ema_bear":' + str.tostring(m5_ema9 < m5_ema21) + ',"rsi":' + str.tostring(math.round(m5_rsi,1)) + ',"macd_bear":' + str.tostring(m5_hist < 0) + ',"sl":' + str.tostring(math.round(slSell,2)) + ',"tp":' + str.tostring(math.round(tpSell,2)) + ',"atr":' + str.tostring(math.round(atr,2)) + '}'
 
-sellMsg = '{"direction":"SELL",' +
-    '"strategy":"H1-M15-M5-EMA200-VWAP",' +
-    '"price":'            + str.tostring(close)                               + ',' +
-    '"h1_aboveEMA200":'   + str.tostring(h1_aboveEMA200)                     + ',' +
-    '"h1_aboveVWAP":'     + str.tostring(h1_aboveVWAP)                       + ',' +
-    '"h1_ema200":'        + str.tostring(math.round(h1_ema200, 2))           + ',' +
-    '"h1_vwap":'          + str.tostring(math.round(h1_vwap,   2))           + ',' +
-    '"h1_choch":'         + str.tostring(h1_chochBear)                       + ',' +
-    '"h1_ob":'            + str.tostring(h1_bearOB)                          + ',' +
-    '"h1_fvg":'           + str.tostring(h1_bearFVG)                         + ',' +
-    '"h1_premium":'       + str.tostring(h1_premium)                         + ',' +
-    '"m15_aboveEMA200":'  + str.tostring(m15_aboveEMA200)                    + ',' +
-    '"m15_vwap_ok":'      + str.tostring(not m15_aboveVWAP or m15_vwapBearBounce)+ ',' +
-    '"m15_ema200":'        + str.tostring(math.round(m15_ema200, 2))         + ',' +
-    '"m15_vwap":'          + str.tostring(math.round(m15_vwap,   2))         + ',' +
-    '"m15_ob":'           + str.tostring(m15_bearOB)                         + ',' +
-    '"m15_fvg":'          + str.tostring(m15_bearFVG)                        + ',' +
-    '"m15_sweep":'        + str.tostring(m15_sweepHigh)                      + ',' +
-    '"m5_aboveEMA200":'   + str.tostring(close < m5_ema200)                  + ',' +
-    '"m5_vwap_ok":'       + str.tostring(not m5_aboveVWAP or m5_vwapBearBounce)+ ',' +
-    '"m5_ema200":'        + str.tostring(math.round(m5_ema200, 2))           + ',' +
-    '"m5_vwap":'          + str.tostring(math.round(m5_vwap,   2))           + ',' +
-    '"m5_choch":'         + str.tostring(m5_chochBear)                       + ',' +
-    '"m5_sweep":'         + str.tostring(m5_sweepHigh)                       + ',' +
-    '"ema_bear":'         + str.tostring(m5_ema9 < m5_ema21)                 + ',' +
-    '"rsi":'              + str.tostring(math.round(m5_rsi, 1))              + ',' +
-    '"macd_bear":'        + str.tostring(m5_hist < 0)                        + ',' +
-    '"sl":'               + str.tostring(math.round(slSell, 2))              + ',' +
-    '"tp":'               + str.tostring(math.round(tpSell, 2))              + ',' +
-    '"atr":'              + str.tostring(math.round(atr,    2))              + '}'
-
-if buySignal
-    alert(buyMsg,  alert.freq_once_per_bar_close)
-if sellSignal
-    alert(sellMsg, alert.freq_once_per_bar_close)
+alertcondition(buySignal,  "BUY Signal",  buyMsg)
+alertcondition(sellSignal, "SELL Signal", sellMsg)
