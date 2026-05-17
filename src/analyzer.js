@@ -32,7 +32,7 @@ Respond ONLY in JSON (no markdown):
   })
 
   try {
-    return JSON.parse(res.content[0].text)
+    const txt = res.content[0].text.replace(/```json|```/g,'').trim(); return JSON.parse(txt)
   } catch {
     return { sentiment: 'neutral', impact: 'low', summary: 'Parse error.', risk_events: [] }
   }
@@ -102,7 +102,7 @@ Respond in JSON only (no markdown):
   })
 
   try {
-    return JSON.parse(res.content[0].text)
+    const txt = res.content[0].text.replace(/```json|```/g,'').trim(); return JSON.parse(txt)
   } catch {
     return {
       validated: false, final_direction: 'WAIT', confidence: 0,
