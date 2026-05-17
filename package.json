@@ -1,0 +1,19 @@
+{
+  "name": "xauusd-signal-bot",
+  "version": "1.0.0",
+  "description": "XAUUSD Day Trade Signal Bot — SMC + EMA200 + VWAP + Claude AI + Telegram",
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "start":   "node src/main.js",
+    "webhook": "node src/webhook.js",
+    "test":    "node src/test.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.0",
+    "dotenv":            "^16.4.5",
+    "express":           "^4.19.2",
+    "node-fetch":        "^3.3.2",
+    "rss-parser":        "^3.13.0"
+  }
+}
